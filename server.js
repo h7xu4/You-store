@@ -3,7 +3,6 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const path = require('path');
-const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -20,8 +19,7 @@ app.use(session({
 }));
 
 // إعداد المجلدات الثابتة
-app.use(express.static('public'));
-app.use('/uploads', express.static('uploads'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // إعداد معالجة البيانات
 app.use(express.json());
