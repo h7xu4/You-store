@@ -41,34 +41,59 @@ async function loadProducts() {
     }
 }
 
-// عرض المنتجات
+// عرض المنتجات مع الأيقونات
 function displayProducts(productsToShow) {
     const productsGrid = document.getElementById('productsGrid');
     productsGrid.innerHTML = '';
     
+    // أيقونات المنتجات
+    const productIcons = {
+        'book1.jpg': 'fas fa-book',
+        'laptop1.jpg': 'fas fa-laptop',
+        'shirt1.jpg': 'fas fa-tshirt',
+        'watch1.jpg': 'fas fa-clock',
+        'phone1.jpg': 'fas fa-mobile-alt',
+        'bag1.jpg': 'fas fa-shopping-bag',
+        'headphones1.jpg': 'fas fa-headphones',
+        'cookbook1.jpg': 'fas fa-utensils'
+    };
+    
+    // ألوان الأيقونات حسب الفئة
+    const categoryColors = {
+        'كتب': '#e74c3c',
+        'إلكترونيات': '#3498db',
+        'ملابس': '#2ecc71',
+        'إكسسوارات': '#f39c12'
+    };
+    
     productsToShow.forEach(product => {
         const productCard = document.createElement('div');
         productCard.className = 'product-card';
+        const iconClass = productIcons[product.image] || 'fas fa-box';
+        const iconColor = categoryColors[product.category] || '#667eea';
+        
         productCard.innerHTML = `
             <div class="product-image">
-                <img src="/images/${product.image}" alt="${product.name}" 
-                     style="width: 100%; height: 100%; object-fit: cover;" 
-                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                <div style="display: none; width: 100%; height: 100%; align-items: center; justify-content: center; background: #f0f0f0; color: #999; font-size: 2rem;">
-                    <i class="fas fa-image"></i>
-                </div>
+                <i class="${iconClass}" style="font-size: 4rem; color: ${iconColor};"></i>
             </div>
             <div class="product-info">
                 <h3 class="product-name">${product.name}</h3>
                 <p class="product-description">${product.description}</p>
-                <div class="product-price">${product.price} ريال</div>
-                <div class="product-actions">
-                    <button class="btn-add-cart" onclick="addToCart(${product.id})">
-                        <i class="fas fa-cart-plus"></i> إضافة للسلة
-                    </button>
+                <div class="product-category">
+                    <span class="category-badge" style="background-color: ${iconColor};">${product.category}</span>
                 </div>
+                <div class="product-price">${product.price} ريال</div>
                 <div class="product-stock">
-                    <small>متوفر: ${product.stock} قطعة</small>
+                    <small style="color: ${product.stock > 0 ? '#28a745' : '#dc3545'};">
+                        ${product.stock > 0 ? `متوفر: ${product.stock} قطعة` : 'غير متوفر'}
+                    </small>
+                </div>
+                <div class="product-actions">
+                    <button class="btn-add-cart" onclick="addToCart(${product.id})" 
+                            ${product.stock <= 0 ? 'disabled' : ''}>
+                        <i class="fas fa-cart-plus"></i> 
+                        ${product.stock > 0 ? 'إضافة للسلة' : 'غير متوفر'}
+                    </button>
                 </div>
             </div>
         `;
@@ -79,7 +104,10 @@ function displayProducts(productsToShow) {
 // إضافة منتج للسلة
 function addToCart(productId) {
     const product = products.find(p => p.id === productId);
-    if (!product) return;
+    if (!product || product.stock <= 0) {
+        showNotification('هذا المنتج غير متوفر حالياً', 'error');
+        return;
+    }
     
     const existingItem = cart.find(item => item.id === productId);
     
@@ -87,29 +115,23 @@ function addToCart(productId) {
         if (existingItem.quantity < product.stock) {
             existingItem.quantity++;
         } else {
-            alert('لا يمكن إضافة المزيد من هذا المنتج');
+            showNotification('لا يمكن إضافة المزيد من هذا المنتج', 'warning');
             return;
         }
     } else {
-        if (product.stock > 0) {
-            cart.push({
-                id: product.id,
-                name: product.name,
-                price: product.price,
-                quantity: 1,
-                stock: product.stock
-            });
-        } else {
-            alert('هذا المنتج غير متوفر حالياً');
-            return;
-        }
+        cart.push({
+            id: product.id,
+            name: product.name,
+            price: product.price,
+            quantity: 1,
+            stock: product.stock,
+            category: product.category
+        });
     }
     
     updateCartDisplay();
     saveCartToStorage();
-    
-    // إظهار رسالة نجاح
-    showNotification('تم إضافة المنتج للسلة بنجاح');
+    showNotification('تم إضافة المنتج للسلة بنجاح', 'success');
 }
 
 // تحديث عرض السلة
@@ -126,7 +148,7 @@ function updateCartDisplay() {
     cartItems.innerHTML = '';
     
     if (cart.length === 0) {
-        cartItems.innerHTML = '<p style="text-align: center; color: #666;">السلة فارغة</p>';
+        cartItems.innerHTML = '<p style="text-align: center; color: #666; padding: 2rem;">السلة فارغة</p>';
     } else {
         cart.forEach(item => {
             const cartItem = document.createElement('div');
@@ -134,13 +156,17 @@ function updateCartDisplay() {
             cartItem.innerHTML = `
                 <div class="cart-item-info">
                     <div class="cart-item-name">${item.name}</div>
-                    <div class="cart-item-price">${item.price} ريال</div>
+                    <div class="cart-item-price">${item.price} ريال × ${item.quantity}</div>
+                    <div class="cart-item-category">
+                        <small style="color: #666;">${item.category}</small>
+                    </div>
                 </div>
                 <div class="cart-item-controls">
                     <button class="quantity-btn" onclick="updateQuantity(${item.id}, -1)">-</button>
                     <span style="margin: 0 10px; font-weight: bold;">${item.quantity}</span>
                     <button class="quantity-btn" onclick="updateQuantity(${item.id}, 1)">+</button>
-                    <button class="quantity-btn" onclick="removeFromCart(${item.id})" style="margin-right: 10px; color: #dc3545;">
+                    <button class="quantity-btn remove-btn" onclick="removeFromCart(${item.id})" 
+                            style="margin-right: 10px; color: #dc3545; border-color: #dc3545;">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
@@ -168,7 +194,7 @@ function updateQuantity(productId, change) {
         updateCartDisplay();
         saveCartToStorage();
     } else {
-        alert('لا يمكن إضافة المزيد من هذا المنتج');
+        showNotification('لا يمكن إضافة المزيد من هذا المنتج', 'warning');
     }
 }
 
@@ -177,14 +203,21 @@ function removeFromCart(productId) {
     cart = cart.filter(item => item.id !== productId);
     updateCartDisplay();
     saveCartToStorage();
+    showNotification('تم إزالة المنتج من السلة', 'info');
 }
 
 // إفراغ السلة
 function clearCart() {
+    if (cart.length === 0) {
+        showNotification('السلة فارغة بالفعل', 'info');
+        return;
+    }
+    
     if (confirm('هل أنت متأكد من إفراغ السلة؟')) {
         cart = [];
         updateCartDisplay();
         saveCartToStorage();
+        showNotification('تم إفراغ السلة', 'info');
     }
 }
 
@@ -194,17 +227,28 @@ function toggleCart() {
     modal.style.display = modal.style.display === 'block' ? 'none' : 'block';
 }
 
-// إتمام الشراء
+// إتمام الشراء مع تقليل الكمية
 async function checkout() {
     if (!currentUser) {
-        alert('يجب تسجيل الدخول أولاً');
-        window.location.href = '/login';
+        showNotification('يجب تسجيل الدخول أولاً', 'error');
+        setTimeout(() => {
+            window.location.href = '/login.html';
+        }, 2000);
         return;
     }
     
     if (cart.length === 0) {
-        alert('السلة فارغة');
+        showNotification('السلة فارغة', 'warning');
         return;
+    }
+    
+    // التحقق من توفر الكميات
+    for (let item of cart) {
+        const product = products.find(p => p.id === item.id);
+        if (!product || product.stock < item.quantity) {
+            showNotification(`الكمية المطلوبة من ${item.name} غير متوفرة`, 'error');
+            return;
+        }
     }
     
     const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -229,17 +273,151 @@ async function checkout() {
         const result = await response.json();
         
         if (response.ok) {
-            alert(`تم إنشاء الطلب بنجاح! رقم الطلب: ${result.orderId}`);
+            showNotification(`تم إنشاء الطلب بنجاح! رقم الطلب: ${result.orderId}`, 'success');
+            
+            // تحديث الكميات المحلية
+            cart.forEach(cartItem => {
+                const product = products.find(p => p.id === cartItem.id);
+                if (product) {
+                    product.stock -= cartItem.quantity;
+                }
+            });
+            
+            // إعادة عرض المنتجات بالكميات المحدثة
+            displayProducts(products);
+            
+            // إفراغ السلة
             cart = [];
             updateCartDisplay();
             saveCartToStorage();
             toggleCart();
+            
+            // إظهار واجهة الدفع
+            showPaymentModal(result.orderId, total);
         } else {
-            alert(result.error || 'خطأ في إنشاء الطلب');
+            showNotification(result.error || 'خطأ في إنشاء الطلب', 'error');
         }
     } catch (error) {
-        alert('خطأ في الاتصال بالخادم');
+        showNotification('خطأ في الاتصال بالخادم', 'error');
         console.error('خطأ في الطلب:', error);
+    }
+}
+
+// إظهار واجهة طرق الدفع
+function showPaymentModal(orderId, total) {
+    const paymentModal = document.createElement('div');
+    paymentModal.className = 'modal';
+    paymentModal.id = 'paymentModal';
+    paymentModal.style.display = 'block';
+    
+    paymentModal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>اختر طريقة الدفع</h3>
+                <span class="close" onclick="closePaymentModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="payment-info">
+                    <p><strong>رقم الطلب:</strong> ${orderId}</p>
+                    <p><strong>المبلغ الإجمالي:</strong> ${total} ريال</p>
+                </div>
+                <div class="payment-methods">
+                    <div class="payment-method" onclick="selectPayment('bank')">
+                        <i class="fas fa-university"></i>
+                        <h4>حوالة بنكية</h4>
+                        <p>تحويل مصرفي مباشر</p>
+                    </div>
+                    <div class="payment-method" onclick="selectPayment('karimi')">
+                        <i class="fas fa-credit-card"></i>
+                        <h4>كريمي</h4>
+                        <p>الدفع عبر كريمي</p>
+                    </div>
+                    <div class="payment-method" onclick="selectPayment('onecash')">
+                        <i class="fas fa-mobile-alt"></i>
+                        <h4>ون كاش</h4>
+                        <p>الدفع عبر ون كاش</p>
+                    </div>
+                    <div class="payment-method" onclick="selectPayment('cash')">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <h4>الدفع عند الاستلام</h4>
+                        <p>ادفع عند وصول الطلب</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(paymentModal);
+}
+
+// اختيار طريقة الدفع
+function selectPayment(method) {
+    const paymentDetails = {
+        'bank': {
+            title: 'حوالة بنكية',
+            details: `
+                <p><strong>بيانات الحساب البنكي:</strong></p>
+                <p>اسم البنك: البنك الأهلي اليمني</p>
+                <p>رقم الحساب: 123456789</p>
+                <p>اسم صاحب الحساب: You Store</p>
+                <p>يرجى إرسال إيصال التحويل على الواتساب: +967 77 259 3040</p>
+            `
+        },
+        'karimi': {
+            title: 'كريمي',
+            details: `
+                <p><strong>بيانات الدفع عبر كريمي:</strong></p>
+                <p>رقم كريمي: +967 77 259 3040</p>
+                <p>اسم المستلم: You Store</p>
+                <p>يرجى إرسال لقطة شاشة للعملية على الواتساب</p>
+            `
+        },
+        'onecash': {
+            title: 'ون كاش',
+            details: `
+                <p><strong>بيانات الدفع عبر ون كاش:</strong></p>
+                <p>رقم ون كاش: +967 77 259 3040</p>
+                <p>اسم المستلم: You Store</p>
+                <p>يرجى إرسال رقم العملية على الواتساب</p>
+            `
+        },
+        'cash': {
+            title: 'الدفع عند الاستلام',
+            details: `
+                <p><strong>الدفع عند الاستلام:</strong></p>
+                <p>سيتم التواصل معك لتأكيد العنوان</p>
+                <p>ادفع المبلغ عند وصول الطلب</p>
+                <p>رسوم التوصيل: 500 ريال (داخل المدينة)</p>
+            `
+        }
+    };
+    
+    const selectedPayment = paymentDetails[method];
+    
+    const paymentModal = document.getElementById('paymentModal');
+    paymentModal.querySelector('.modal-body').innerHTML = `
+        <div class="payment-selected">
+            <h3>${selectedPayment.title}</h3>
+            ${selectedPayment.details}
+            <div class="payment-actions">
+                <button class="btn-primary" onclick="confirmPayment('${method}')">تأكيد الطلب</button>
+                <button class="btn-secondary" onclick="showPaymentModal()">العودة</button>
+            </div>
+        </div>
+    `;
+}
+
+// تأكيد الدفع
+function confirmPayment(method) {
+    showNotification('تم تأكيد طلبك! سيتم التواصل معك قريباً', 'success');
+    closePaymentModal();
+}
+
+// إغلاق واجهة الدفع
+function closePaymentModal() {
+    const paymentModal = document.getElementById('paymentModal');
+    if (paymentModal) {
+        document.body.removeChild(paymentModal);
     }
 }
 
@@ -253,7 +431,7 @@ async function logout() {
         if (response.ok) {
             currentUser = null;
             checkAuthStatus();
-            alert('تم تسجيل الخروج بنجاح');
+            showNotification('تم تسجيل الخروج بنجاح', 'success');
         }
     } catch (error) {
         console.error('خطأ في تسجيل الخروج:', error);
@@ -274,31 +452,56 @@ function loadCartFromStorage() {
     }
 }
 
-// إظهار إشعار
-function showNotification(message) {
+// إظهار إشعار محسن
+function showNotification(message, type = 'success') {
     const notification = document.createElement('div');
+    
+    const colors = {
+        'success': '#28a745',
+        'error': '#dc3545',
+        'warning': '#ffc107',
+        'info': '#17a2b8'
+    };
+    
+    const icons = {
+        'success': 'fas fa-check-circle',
+        'error': 'fas fa-exclamation-circle',
+        'warning': 'fas fa-exclamation-triangle',
+        'info': 'fas fa-info-circle'
+    };
+    
     notification.style.cssText = `
         position: fixed;
         top: 100px;
         right: 20px;
-        background: #28a745;
+        background: ${colors[type]};
         color: white;
         padding: 15px 20px;
-        border-radius: 5px;
+        border-radius: 8px;
         z-index: 3000;
         box-shadow: 0 4px 12px rgba(0,0,0,0.2);
         animation: slideIn 0.3s ease;
+        max-width: 300px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     `;
-    notification.textContent = message;
+    
+    notification.innerHTML = `
+        <i class="${icons[type]}"></i>
+        <span>${message}</span>
+    `;
     
     document.body.appendChild(notification);
     
     setTimeout(() => {
         notification.style.animation = 'slideOut 0.3s ease';
         setTimeout(() => {
-            document.body.removeChild(notification);
+            if (document.body.contains(notification)) {
+                document.body.removeChild(notification);
+            }
         }, 300);
-    }, 3000);
+    }, 4000);
 }
 
 // إضافة أنيميشن CSS
@@ -313,14 +516,96 @@ style.textContent = `
         from { transform: translateX(0); opacity: 1; }
         to { transform: translateX(100%); opacity: 0; }
     }
+    
+    .category-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 12px;
+        color: white;
+        font-size: 0.8rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+    }
+    
+    .payment-methods {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .payment-method {
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+    }
+    
+    .payment-method:hover {
+        border-color: #667eea;
+        background-color: #f8f9ff;
+    }
+    
+    .payment-method i {
+        font-size: 2rem;
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
+    
+    .payment-method h4 {
+        margin: 0.5rem 0;
+        color: #333;
+    }
+    
+    .payment-method p {
+        margin: 0;
+        color: #666;
+        font-size: 0.9rem;
+    }
+    
+    .payment-info {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+    }
+    
+    .payment-selected {
+        text-align: center;
+    }
+    
+    .payment-actions {
+        margin-top: 2rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+    }
+    
+    .btn-add-cart:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+    
+    .remove-btn:hover {
+        background-color: #dc3545 !important;
+        color: white !important;
+    }
 `;
 document.head.appendChild(style);
 
 // إغلاق النافذة المنبثقة عند النقر خارجها
 window.onclick = function(event) {
-    const modal = document.getElementById('cartModal');
-    if (event.target === modal) {
-        modal.style.display = 'none';
+    const cartModal = document.getElementById('cartModal');
+    const paymentModal = document.getElementById('paymentModal');
+    
+    if (event.target === cartModal) {
+        cartModal.style.display = 'none';
     }
-
+    
+    if (event.target === paymentModal) {
+        closePaymentModal();
+    }
 }
