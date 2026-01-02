@@ -3,9 +3,21 @@ const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
 const session = require('express-session');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// تحديد مسار مجلد public الصحيح
+let publicPath = path.join(__dirname, 'public');
+if (!fs.existsSync(publicPath)) {
+    publicPath = path.join(__dirname, '../public');
+}
+if (!fs.existsSync(publicPath)) {
+    publicPath = path.join(__dirname, '../../public');
+}
+
+console.log('Public path:', publicPath);
 
 // إعداد قاعدة البيانات
 const db = new sqlite3.Database('youstore.db');
@@ -19,7 +31,7 @@ app.use(session({
 }));
 
 // إعداد المجلدات الثابتة
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(publicPath));
 
 // إعداد معالجة البيانات
 app.use(express.json());
@@ -93,17 +105,21 @@ db.serialize(() => {
 
 // الصفحة الرئيسية
 app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+    const indexPath = path.join(publicPath, 'index.html');
+    console.log('Looking for index.html at:', indexPath);
+    res.sendFile(indexPath);
 });
 
 // صفحة تسجيل الدخول
 app.get('/login', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+    const loginPath = path.join(publicPath, 'login.html');
+    res.sendFile(loginPath);
 });
 
 // صفحة إنشاء حساب
 app.get('/register', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'register.html'));
+    const registerPath = path.join(publicPath, 'register.html');
+    res.sendFile(registerPath);
 });
 
 // API للحصول على المنتجات
@@ -218,4 +234,5 @@ app.listen(PORT, () => {
     console.log(`قم بزيارة: http://localhost:${PORT}`);
     console.log(`الموقع: أب، الجمهورية اليمنية`);
     console.log(`للتواصل: +967 77 259 3040`);
+    console.log(`Public directory: ${publicPath}`);
 });
