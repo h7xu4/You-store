@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You Store - متجرك الإلكتروني</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- شريط التنقل -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <h2><i class="fas fa-store"></i> You Store</h2>
+            </div>
+            <div class="nav-menu">
+                <a href="#home" class="nav-link">الرئيسية</a>
+                <a href="#products" class="nav-link">المنتجات</a>
+                <a href="#about" class="nav-link">من نحن</a>
+                <a href="#contact" class="nav-link">اتصل بنا</a>
+            </div>
+            <div class="nav-actions">
+                <div class="cart-icon" onclick="toggleCart()">
+                    <i class="fas fa-shopping-cart"></i>
+                    <span class="cart-count">0</span>
+                </div>
+                <div class="user-menu">
+                    <button id="loginBtn" class="btn-primary" onclick="window.location.href='/login.html'">تسجيل الدخول</button>
+                    <div id="userInfo" class="user-info" style="display: none;">
+                        <span id="welcomeText"></span>
+                        <button onclick="logout()" class="btn-secondary">تسجيل الخروج</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- القسم الرئيسي -->
+    <section id="home" class="hero">
+        <div class="hero-content">
+            <h1>مرحباً بك في You Store</h1>
+            <p>متجرك الإلكتروني المتكامل لجميع احتياجاتك</p>
+            <button class="btn-hero" onclick="document.getElementById('products').scrollIntoView()">
+                تسوق الآن
+            </button>
+        </div>
+    </section>
+
+    <!-- قسم المنتجات -->
+    <section id="products" class="products-section">
+        <div class="container">
+            <h2 class="section-title">منتجاتنا</h2>
+            <div class="products-grid" id="productsGrid">
+                <!-- سيتم تحميل المنتجات هنا -->
+            </div>
+        </div>
+    </section>
+
+    <!-- سلة التسوق -->
+    <div id="cartModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>سلة التسوق</h3>
+                <span class="close" onclick="toggleCart()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="cartItems"></div>
+                <div class="cart-total">
+                    <strong>المجموع: <span id="cartTotal">0</span> ريال</strong>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-primary" onclick="checkout()">إتمام الشراء</button>
+                <button class="btn-secondary" onclick="clearCart()">إفراغ السلة</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- قسم من نحن -->
+    <section id="about" class="about-section">
+        <div class="container">
+            <h2 class="section-title">من نحن</h2>
+            <p>You Store هو متجرك الإلكتروني الموثوق الذي يوفر لك أفضل المنتجات بأسعار منافسة وخدمة عملاء ممتازة.</p>
+        </div>
+    </section>
+
+    <!-- قسم اتصل بنا -->
+    <section id="contact" class="contact-section">
+        <div class="container">
+            <h2 class="section-title">اتصل بنا</h2>
+            <div class="contact-info">
+                <div class="contact-item">
+                    <i class="fas fa-phone"></i>
+                    <span>+967 77 259 3040</span>
+                </div>
+                <div class="contact-item">
+                    <i class="fas fa-envelope"></i>
+                    <span>hussainal3nsi@gmail.com</span>
+                </div>
+                <div class="contact-item">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <span>أب، الجمهورية اليمنية</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- التذييل -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 You Store. جميع الحقوق محفوظة.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
