@@ -18,7 +18,7 @@ app.use(session({
     cookie: { secure: false }
 }));
 
-// إعداد المجلدات الثابتة - الطريقة الصحيحة
+// إعداد المجلدات الثابتة
 app.use(express.static('public'));
 
 // إعداد معالجة البيانات
@@ -57,6 +57,7 @@ db.serialize(() => {
         user_id INTEGER,
         total_amount DECIMAL(10,2),
         status TEXT DEFAULT 'pending',
+        payment_method TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users (id)
     )`);
@@ -75,13 +76,13 @@ db.serialize(() => {
     // إضافة منتجات تجريبية
     const sampleProducts = [
         ['كتاب البرمجة', 'كتاب تعليم البرمجة للمبتدئين', 50.00, 'book1.jpg', 'كتب', 10],
+        ['كتاب الطبخ', 'كتاب وصفات الطبخ العربي', 40.00, 'cookbook1.jpg', 'كتب', 18],
         ['لابتوب Dell', 'لابتوب Dell Inspiron 15', 2500.00, 'laptop1.jpg', 'إلكترونيات', 5],
-        ['قميص قطني', 'قميص قطني عالي الجودة', 75.00, 'shirt1.jpg', 'ملابس', 20],
-        ['ساعة ذكية', 'ساعة ذكية بمميزات متقدمة', 800.00, 'watch1.jpg', 'إلكترونيات', 8],
         ['هاتف ذكي', 'هاتف ذكي بكاميرا عالية الدقة', 1200.00, 'phone1.jpg', 'إلكترونيات', 15],
-        ['حقيبة جلدية', 'حقيبة جلدية أنيقة للعمل', 150.00, 'bag1.jpg', 'إكسسوارات', 12],
+        ['ساعة ذكية', 'ساعة ذكية بمميزات متقدمة', 800.00, 'watch1.jpg', 'إلكترونيات', 8],
         ['سماعات لاسلكية', 'سماعات بلوتوث عالية الجودة', 300.00, 'headphones1.jpg', 'إلكترونيات', 25],
-        ['كتاب الطبخ', 'كتاب وصفات الطبخ العربي', 40.00, 'cookbook1.jpg', 'كتب', 18]
+        ['قميص قطني', 'قميص قطني عالي الجودة', 75.00, 'shirt1.jpg', 'ملابس', 20],
+        ['حقيبة جلدية', 'حقيبة جلدية أنيقة للعمل', 150.00, 'bag1.jpg', 'إكسسوارات', 12]
     ];
 
     const stmt = db.prepare(`INSERT OR IGNORE INTO products (name, description, price, image, category, stock) VALUES (?, ?, ?, ?, ?, ?)`);
@@ -91,7 +92,7 @@ db.serialize(() => {
     stmt.finalize();
 });
 
-// الصفحات - بدون sendFile، استخدام express.static فقط
+// الصفحات الرئيسية
 app.get('/', (req, res) => {
     res.redirect('/index.html');
 });
@@ -104,7 +105,24 @@ app.get('/register', (req, res) => {
     res.redirect('/register.html');
 });
 
-// API للحصول على المنتجات
+// صفحات الأقسام
+app.get('/books', (req, res) => {
+    res.redirect('/books.html');
+});
+
+app.get('/electronics', (req, res) => {
+    res.redirect('/electronics.html');
+});
+
+app.get('/clothes', (req, res) => {
+    res.redirect('/clothes.html');
+});
+
+app.get('/accessories', (req, res) => {
+    res.redirect('/accessories.html');
+});
+
+// API للحصول على جميع المنتجات
 app.get('/api/products', (req, res) => {
     db.all('SELECT * FROM products ORDER BY created_at DESC', (err, rows) => {
         if (err) {
@@ -112,6 +130,34 @@ app.get('/api/products', (req, res) => {
             return;
         }
         res.json(rows);
+    });
+});
+
+// API للحصول على المنتجات حسب الفئة
+app.get('/api/products/category/:category', (req, res) => {
+    const category = req.params.category;
+    db.all('SELECT * FROM products WHERE category = ? ORDER BY created_at DESC', [category], (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json(rows);
+    });
+});
+
+// API للحصول على منتج واحد
+app.get('/api/products/:id', (req, res) => {
+    const productId = req.params.id;
+    db.get('SELECT * FROM products WHERE id = ?', [productId], (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        if (!row) {
+            res.status(404).json({ error: 'المنتج غير موجود' });
+            return;
+        }
+        res.json(row);
     });
 });
 
@@ -180,35 +226,193 @@ app.get('/api/auth-status', (req, res) => {
     }
 });
 
-// API لإضافة طلب جديد
+// API لإضافة طلب جديد مع تقليل الكمية
 app.post('/api/orders', (req, res) => {
     if (!req.session.userId) {
         res.status(401).json({ error: 'يجب تسجيل الدخول أولاً' });
         return;
     }
     
-    const { items, total } = req.body;
+    const { items, total, payment_method } = req.body;
     
-    db.run(
-        'INSERT INTO orders (user_id, total_amount) VALUES (?, ?)',
-        [req.session.userId, total],
-        function(err) {
+    // بدء معاملة قاعدة البيانات
+    db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        
+        // التحقق من توفر الكميات
+        let stockCheckPromises = items.map(item => {
+            return new Promise((resolve, reject) => {
+                db.get('SELECT stock FROM products WHERE id = ?', [item.productId], (err, row) => {
+                    if (err) {
+                        reject(err);
+                    } else if (!row || row.stock < item.quantity) {
+                        reject(new Error(`الكمية المطلوبة غير متوفرة للمنتج ${item.productId}`));
+                    } else {
+                        resolve();
+                    }
+                });
+            });
+        });
+        
+        Promise.all(stockCheckPromises)
+            .then(() => {
+                // إنشاء الطلب
+                db.run(
+                    'INSERT INTO orders (user_id, total_amount, payment_method) VALUES (?, ?, ?)',
+                    [req.session.userId, total, payment_method || 'غير محدد'],
+                    function(err) {
+                        if (err) {
+                            db.run('ROLLBACK');
+                            res.status(500).json({ error: 'خطأ في إنشاء الطلب' });
+                            return;
+                        }
+                        
+                        const orderId = this.lastID;
+                        
+                        // إضافة تفاصيل الطلب وتقليل الكميات
+                        let completed = 0;
+                        let hasError = false;
+                        
+                        items.forEach(item => {
+                            // إضافة تفاصيل الطلب
+                            db.run(
+                                'INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)',
+                                [orderId, item.productId, item.quantity, item.price],
+                                (err) => {
+                                    if (err && !hasError) {
+                                        hasError = true;
+                                        db.run('ROLLBACK');
+                                        res.status(500).json({ error: 'خطأ في إضافة تفاصيل الطلب' });
+                                        return;
+                                    }
+                                    
+                                    // تقليل الكمية
+                                    db.run(
+                                        'UPDATE products SET stock = stock - ? WHERE id = ?',
+                                        [item.quantity, item.productId],
+                                        (err) => {
+                                            if (err && !hasError) {
+                                                hasError = true;
+                                                db.run('ROLLBACK');
+                                                res.status(500).json({ error: 'خطأ في تحديث الكمية' });
+                                                return;
+                                            }
+                                            
+                                            completed++;
+                                            if (completed === items.length && !hasError) {
+                                                db.run('COMMIT');
+                                                res.json({ 
+                                                    message: 'تم إنشاء الطلب بنجاح', 
+                                                    orderId: orderId,
+                                                    total: total,
+                                                    itemsCount: items.length
+                                                });
+                                            }
+                                        }
+                                    );
+                                }
+                            );
+                        });
+                    }
+                );
+            })
+            .catch((error) => {
+                db.run('ROLLBACK');
+                res.status(400).json({ error: error.message });
+            });
+    });
+});
+
+// API للحصول على طلبات المستخدم
+app.get('/api/orders', (req, res) => {
+    if (!req.session.userId) {
+        res.status(401).json({ error: 'يجب تسجيل الدخول أولاً' });
+        return;
+    }
+    
+    db.all(
+        `SELECT o.*, GROUP_CONCAT(p.name || ' (x' || oi.quantity || ')') as items
+         FROM orders o 
+         LEFT JOIN order_items oi ON o.id = oi.order_id 
+         LEFT JOIN products p ON oi.product_id = p.id 
+         WHERE o.user_id = ? 
+         GROUP BY o.id 
+         ORDER BY o.created_at DESC`,
+        [req.session.userId],
+        (err, rows) => {
             if (err) {
-                res.status(500).json({ error: 'خطأ في إنشاء الطلب' });
+                res.status(500).json({ error: err.message });
                 return;
             }
-            
-            const orderId = this.lastID;
-            const stmt = db.prepare('INSERT INTO order_items (order_id, product_id, quantity, price) VALUES (?, ?, ?, ?)');
-            
-            items.forEach(item => {
-                stmt.run([orderId, item.productId, item.quantity, item.price]);
-            });
-            stmt.finalize();
-            
-            res.json({ message: 'تم إنشاء الطلب بنجاح', orderId: orderId });
+            res.json(rows);
         }
     );
+});
+
+// API للحصول على إحصائيات المتجر
+app.get('/api/stats', (req, res) => {
+    const stats = {};
+    
+    // عدد المنتجات
+    db.get('SELECT COUNT(*) as count FROM products', (err, row) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        stats.products = row.count;
+        
+        // عدد المستخدمين
+        db.get('SELECT COUNT(*) as count FROM users', (err, row) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            stats.users = row.count;
+            
+            // عدد الطلبات
+            db.get('SELECT COUNT(*) as count FROM orders', (err, row) => {
+                if (err) {
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                stats.orders = row.count;
+                
+                // إجمالي المبيعات
+                db.get('SELECT SUM(total_amount) as total FROM orders', (err, row) => {
+                    if (err) {
+                        res.status(500).json({ error: err.message });
+                        return;
+                    }
+                    stats.totalSales = row.total || 0;
+                    
+                    res.json(stats);
+                });
+            });
+        });
+    });
+});
+
+// API للحصول على الفئات
+app.get('/api/categories', (req, res) => {
+    db.all('SELECT DISTINCT category FROM products ORDER BY category', (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        const categories = rows.map(row => row.category);
+        res.json(categories);
+    });
+});
+
+// معالج الأخطاء العام
+app.use((err, req, res, next) => {
+    console.error(err.stack);
+    res.status(500).json({ error: 'حدث خطأ في الخادم' });
+});
+
+// معالج الصفحات غير الموجودة
+app.use((req, res) => {
+    res.status(404).redirect('/');
 });
 
 app.listen(PORT, () => {
